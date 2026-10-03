@@ -4,11 +4,20 @@ import time
 
 import pytest
 from deepeval import assert_test
-from deepeval.metrics import AnswerRelevancyMetric, FaithfulnessMetric
+from deepeval.metrics import (
+    AnswerRelevancyMetric,
+    FaithfulnessMetric,
+    TaskCompletionMetric,
+    ToolCorrectnessMetric,
+)
 from deepeval.models import GeminiModel
-from deepeval.test_case import LLMTestCase
+from deepeval.test_case import LLMTestCase, ToolCall
+from google.genai import types
 
 from agent import answer
+
+# Pin "today" for the get_today tool so results are the same on any day.
+os.environ.setdefault("AGENT_TODAY", "2026-10-03")
 
 # The free tier allows 5 requests per minute per model, so the judge uses a
 # different model from the agent and spaces out its calls.
@@ -40,62 +49,81 @@ class ThrottledGemini(GeminiModel):
 
 
 judge = ThrottledGemini(
-    JUDGE_MODEL, api_key=os.getenv("GOOGLE_API_KEY"), rpm=JUDGE_RPM
+    JUDGE_MODEL,
+    api_key=os.getenv("GOOGLE_API_KEY"),
+    rpm=JUDGE_RPM,
+    # Passed through to the Gemini client; a dropped connection must not hang the run.
+    http_options=types.HttpOptions(timeout=60_000),
 )
 
+# (category, question, tools the agent must call)
 CASES = [
     # Normal: answerable from docs/.
-    ("normal", "How long do I have to get a full refund?"),
-    ("normal", "Can I get a refund on a digital download?"),
-    ("normal", "How much does express shipping cost?"),
-    ("normal", "Do you ship to South Korea?"),
+    ("normal", "How long do I have to get a full refund?", []),
+    ("normal", "Can I get a refund on a digital download?", []),
+    ("normal", "How much does express shipping cost?", []),
+    ("normal", "Do you ship to South Korea?", []),
     # Not in the knowledge base: the agent should say it doesn't know.
-    ("out_of_kb", "What is your customer support phone number?"),
-    ("out_of_kb", "Do you offer a warranty on electronics?"),
-    ("out_of_kb", "Can I pay with PayPal?"),
-    # Needs two tools the agent doesn't have (lookup, calculator, date, FX).
-    ("two_tools", "Check the status of order #48213 and tell me its delivery date."),
+    ("out_of_kb", "What is your customer support phone number?", []),
+    ("out_of_kb", "Do you offer a warranty on electronics?", []),
+    ("out_of_kb", "Can I pay with PayPal?", []),
+    # Needs two tools (see tools.py for the mock data).
     (
         "two_tools",
-        (
-            "I paid $40 for an item on September 1. If I return it today, "
-            "how much do I get back and in what form?"
-        ),
+        "Check order #48213 and tell me how many days are left until it arrives.",
+        ["lookup_order", "get_today"],
+    ),
+    (
+        "two_tools",
+        "If I return order #51007 today, how much money do I get back and in what form?",
+        ["lookup_order", "get_today"],
     ),
     (
         "two_tools",
         (
-            "Convert the express shipping cost to Korean won at today's rate "
-            "and tell me the arrival date if I order now."
+            "Convert the express shipping cost to Korean won and tell me "
+            "the arrival date if I order today."
         ),
+        ["convert_currency", "get_today"],
     ),
 ]
 
-
-# Core cases run in CI (`-m core`) to stay within free-tier daily limits.
-CORE = {1, 2, 5}
+# Core cases run in CI (`-m core`): one per category, to stay within
+# free-tier daily limits.
+CORE = {1, 5, 8}
 
 
 @pytest.mark.parametrize(
-    "question",
+    ("category", "question", "expected_tools"),
     [
-        pytest.param(q, id=f"{cat}-{i}", marks=pytest.mark.core if i in CORE else ())
-        for i, (cat, q) in enumerate(CASES, 1)
+        pytest.param(*case, id=f"{case[0]}-{i}", marks=pytest.mark.core if i in CORE else ())
+        for i, case in enumerate(CASES, 1)
     ],
 )
-def test_agent(question: str) -> None:
-    reply, context = answer(question)
+def test_agent(category: str, question: str, expected_tools: list[str]) -> None:
+    result = answer(question)
     test_case = LLMTestCase(
         input=question,
-        actual_output=reply,
-        retrieval_context=context,
+        actual_output=result.text,
+        retrieval_context=result.context,
+        tools_called=[
+            ToolCall(name=u.name, input_parameters=u.args, output=u.output)
+            for u in result.tool_uses
+        ],
+        expected_tools=[ToolCall(name=name) for name in expected_tools],
     )
-    # Sequential calls and no written reasons keep the judge to 5 calls per test.
+    # Sequential calls and no written reasons keep judge calls to a minimum.
     metric_kwargs = {"model": judge, "async_mode": False, "include_reason": False}
-    assert_test(
-        test_case,
-        [
+    if category == "two_tools":
+        metrics = [
+            # Compares tool names directly; no judge call. 1.0 = every
+            # expected tool was called.
+            ToolCorrectnessMetric(threshold=1.0, **metric_kwargs),
+            TaskCompletionMetric(threshold=0.7, **metric_kwargs),
+        ]
+    else:
+        metrics = [
             AnswerRelevancyMetric(threshold=0.7, **metric_kwargs),
             FaithfulnessMetric(threshold=0.7, **metric_kwargs),
-        ],
-    )
+        ]
+    assert_test(test_case, metrics)

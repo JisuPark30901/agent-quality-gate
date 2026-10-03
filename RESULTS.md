@@ -1,43 +1,71 @@
 # 테스트 결과
 
-- **실행 시각:** 2026-10-03
+- **실행일:** 2026-10-03
 - **명령:** `deepeval test run test_agent.py`
-- **에이전트 모델:** `gemini-3.7-flash` (9번만 `gemini-3.6-flash`, 아래 참고)
 - **평가(judge) 모델:** `gemini-3.5-flash-lite`
-- **통과 기준:** Answer Relevancy, Faithfulness 모두 0.7 이상
-- **결과:** 10개 중 6개 PASS, 4개 FAIL (통과율 60%)
+- **결과:** 10개 중 10개 PASS (통과율 100%)
+- **변경점:** 에이전트에 도구 3개(`lookup_order`, `get_today`, `convert_currency`)를 추가했습니다. 이전 실행(도구 없음)은 6/10이었습니다.
+
+## 품질 기준
+
+| 유형 | 지표 | 기준 | 무엇을 보나 |
+|------|------|-----:|-------------|
+| 정상, 지식베이스 밖 | Answer Relevancy | 0.7 | 답변이 질문에 맞는가 |
+| 정상, 지식베이스 밖 | Faithfulness | 0.7 | 문서에 없는 내용을 지어내지 않았는가 |
+| 도구 2개 필요 | Tool Correctness | 1.0 | 호출해야 할 도구를 모두 호출했는가 (평가 모델 없이 계산) |
+| 도구 2개 필요 | Task Completion | 0.7 | 질문이 요구한 일을 실제로 해냈는가 |
 
 ## 케이스별 결과
 
-| # | 유형 | 질문 | 에이전트 답변 | Answer Relevancy | Faithfulness | 결과 | 실패 원인 |
-|---|------|------|---------------|-----------------:|-------------:|:----:|-----------|
-| 1 | 정상 | How long do I have to get a full refund? | You have within 30 days of purchase to request a full refund. | 1.00 | 1.00 | PASS | |
-| 2 | 정상 | Can I get a refund on a digital download? | Digital downloads are non-refundable once the file has been downloaded. | 1.00 | 1.00 | PASS | |
-| 3 | 정상 | How much does express shipping cost? | Express shipping costs $15. | 1.00 | 1.00 | PASS | |
-| 4 | 정상 | Do you ship to South Korea? | Yes, we ship to South Korea. | 1.00 | 1.00 | PASS | |
-| 5 | 지식베이스 밖 | What is your customer support phone number? | I don't know. | 1.00 | 1.00 | PASS | |
-| 6 | 지식베이스 밖 | Do you offer a warranty on electronics? | I don't know. | 0.00 | 1.00 | FAIL | **평가 모델의 판정이 일관되지 않음.** 답변은 5·7번과 똑같은 "I don't know."로 올바르게 거절했지만, 이 케이스에서만 관련성 0점을 받음. 에이전트 결함이 아니라 지표 문제 |
-| 7 | 지식베이스 밖 | Can I pay with PayPal? | I don't know. | 1.00 | 1.00 | PASS | |
-| 8 | 도구 2개 필요 | Check the status of order #48213 and tell me its delivery date. | I don't know. | 0.00 | 1.00 | FAIL | **에이전트에 도구가 없음.** 주문 조회와 배송일 계산이 필요하지만 에이전트는 문서 검색만 함. 지어내지는 않았지만(Faithfulness 1.0), 왜 못 하는지 설명하지 않고 "I don't know."로만 답해 관련성 0점 |
-| 9 | 도구 2개 필요 | I paid $40 for an item on September 1. If I return it today, how much do I get back and in what form? | I don't know. The provided context does not mention today's date, so it is not possible to determine if the return is within 30 days… | 1.00 | 0.67 | FAIL | **날짜 도구가 없음.** 오늘 날짜를 몰라 30일 경과 여부(→ $40 store credit)를 판단하지 못함. 문서에 없는 판단을 섞어 설명하다 Faithfulness가 기준 미달 |
-| 10 | 도구 2개 필요 | Convert the express shipping cost to Korean won at today's rate and tell me the arrival date if I order now. | I don't know. | 0.00 | 1.00 | FAIL | **환율·날짜 도구가 없고, 아는 부분도 답하지 않음.** 문서에 있는 "$15, 1~2 영업일"조차 말하지 않고 전부 거절함. 부분 답변을 못 하는 것은 에이전트(프롬프트) 개선 대상 |
+| # | 유형 | 질문 | 에이전트 답변 (요약) | 점수 | 결과 |
+|---|------|------|----------------------|------|:----:|
+| 1 | 정상 | How long do I have to get a full refund? | 구매 후 30일 이내 전액 환불 | Relevancy 1.00 / Faithfulness 1.00 | PASS |
+| 2 | 정상 | Can I get a refund on a digital download? | 다운로드한 디지털 상품은 환불 불가 | Relevancy 1.00 / Faithfulness 1.00 | PASS |
+| 3 | 정상 | How much does express shipping cost? | $15 | Relevancy 1.00 / Faithfulness 1.00 | PASS |
+| 4 | 정상 | Do you ship to South Korea? | 한국으로 배송함 | Relevancy 1.00 / Faithfulness 1.00 | PASS |
+| 5 | 지식베이스 밖 | What is your customer support phone number? | I don't know. | Relevancy 1.00 / Faithfulness 1.00 | PASS |
+| 6 | 지식베이스 밖 | Do you offer a warranty on electronics? | I don't know. 문서에 보증 관련 내용이 없음 | Relevancy 1.00 / Faithfulness 1.00 | PASS |
+| 7 | 지식베이스 밖 | Can I pay with PayPal? | I don't know. 문서에 결제 수단 내용이 없음 | Relevancy 1.00 / Faithfulness 1.00 | PASS |
+| 8 | 도구 2개 | Check order #48213 and tell me how many days are left until it arrives. | 10/6 도착 예정, 오늘(10/3) 기준 3일 남음 | Tool Correctness 1.00 / Task Completion 1.00 | PASS |
+| 9 | 도구 2개 | If I return order #51007 today, how much money do I get back and in what form? | 구매 후 32일 경과 → $40 스토어 크레딧 | Tool Correctness 1.00 / Task Completion 1.00 | PASS |
+| 10 | 도구 2개 | Convert the express shipping cost to Korean won and tell me the arrival date if I order today. | $15 = 20,700원, 영업일 1~2일 → 10/5(월)~10/6(화) 도착 | Tool Correctness 1.00 / Task Completion 1.00 | PASS |
 
-## 유형별 요약
+8~10번에서 실제로 호출된 도구:
 
-| 유형 | PASS | FAIL | 해석 |
-|------|-----:|-----:|------|
-| 정상 | 4 | 0 | 문서로 답할 수 있는 질문은 모두 정확함 |
-| 지식베이스 밖 (할루시네이션 유도) | 2 | 1 | **할루시네이션 0건.** 3건 모두 올바르게 거절함(Faithfulness 1.0). 실패 1건은 평가 모델의 판정 흔들림 |
-| 도구 2개 필요 | 0 | 3 | 에이전트에 도구가 없어 예상대로 실패. 지어내지는 않음 |
+| # | 기대한 도구 | 실제 호출 |
+|---|-------------|-----------|
+| 8 | `lookup_order`, `get_today` | `lookup_order`, `get_today` |
+| 9 | `lookup_order`, `get_today` | `lookup_order`, `get_today` |
+| 10 | `convert_currency`, `get_today` | `get_today`, `convert_currency` |
 
-## 개선 제안
+## 이전 실행과 비교
 
-1. **도구 추가:** 주문 조회, 오늘 날짜, 환율 도구를 붙이면 8~10번을 해결할 수 있습니다.
-2. **부분 답변 허용:** 시스템 프롬프트를 바꿔 "아는 부분은 답하고, 모르는 부분은 왜 모르는지 설명"하게 하면 10번처럼 전부 거절하는 일이 줄어듭니다.
-3. **거절 케이스용 지표:** Answer Relevancy는 올바른 거절에도 0점을 줄 수 있습니다(6번). 지식베이스 밖 질문은 "모른다고 답했는가"를 직접 확인하는 지표(예: deepeval `GEval`)로 평가하는 편이 정확합니다.
+| 유형 | 이전 (도구 없음) | 현재 (도구 3개) | 무엇이 바뀌었나 |
+|------|:---:|:---:|-----------------|
+| 정상 | 4/4 | 4/4 | 변화 없음 |
+| 지식베이스 밖 | 2/3 | 3/3 | 할루시네이션은 이전에도 0건. 6번 실패가 사라짐 (아래 참고) |
+| 도구 2개 필요 | 0/3 | 3/3 | 도구 추가로 해결. 9번은 날짜 계산과 문서의 환불 규정을 함께 써야 풀리는 문제 |
+| **합계** | **6/10** | **10/10** | |
 
-## 참고
+## 발견한 점
 
-- **9번 재실행:** 첫 실행에서 9번은 에이전트 모델 `gemini-3.7-flash`의 하루 무료 한도(20회)를 넘어 `429 RESOURCE_EXHAUSTED`로 평가되지 못했습니다. 그래서 9번만 `GEMINI_MODEL=gemini-3.6-flash`로 다시 실행했고, 위 표에는 그 결과를 넣었습니다.
-- **Docker 실행 확인:** 컨테이너 안에서 핵심 케이스 3개(1·2·5번, 에이전트 `gemini-3.6-flash`)를 돌린 결과 2개 PASS, 1개 FAIL이었습니다. 2번이 Answer Relevancy 0.50으로 떨어졌는데, 답변이 "Based on the provided policy, …"로 장황해지며 관련 없는 문장이 섞였기 때문입니다. 같은 질문이 `gemini-3.7-flash`에서는 1.00이었으므로, 에이전트 모델에 따라 결과가 달라집니다.
-- 점수는 평가 모델이 매기므로 실행할 때마다 달라질 수 있습니다.
+1. **이유 없는 거절은 평가가 흔들립니다.** 이전 실행에서 5·6·7번은 모두 "I don't know."라고만 답했는데, 6번만 관련성 0점을 받았습니다. 이번 실행에서는 "문서에 보증 관련 내용이 없다"처럼 이유를 함께 말했고, 3건 모두 1.00이었습니다. 거절할 때 이유를 말하도록 에이전트를 설계하면 평가가 안정되고 사용자에게도 더 유용합니다.
+2. **에이전트 모델이 바뀌면 답변 스타일이 바뀝니다.** 같은 2번 질문이 Docker 실행(`gemini-3.6-flash`)에서는 장황한 답변 때문에 관련성 0.50으로 떨어졌습니다. 모델을 바꿀 때는 회귀 테스트를 다시 돌려야 합니다.
+3. **도구 평가는 평가 모델 없이 할 수 있습니다.** Tool Correctness는 도구 이름을 직접 비교하므로 점수가 흔들리지 않고 무료 한도도 쓰지 않습니다.
+
+## 테스트 설계
+
+- **가짜 데이터와 고정 날짜:** 주문 데이터, 환율(1달러 = 1,380원), 오늘 날짜(2026-10-03)를 고정해서 테스트가 매번 같은 정답을 갖게 했습니다. 실제 날짜나 실시간 환율을 쓰면 점수가 떨어졌을 때 에이전트 문제인지 데이터 변화인지 구분할 수 없습니다.
+- **CI 핵심 케이스:** 무료 한도 때문에 CI에서는 유형별로 하나씩(1·5·8번)만 실행합니다.
+
+## 실행 환경 참고
+
+무료 티어는 모델마다 하루 약 20회로 제한되어, 케이스를 에이전트 모델 3개에 나눠 실행했습니다.
+
+| 케이스 | 에이전트 모델 |
+|--------|---------------|
+| 1~5 | `gemini-3.5-flash` |
+| 6~7 | `gemini-3.1-flash-lite` (`gemini-3.5-flash` 한도 소진) |
+| 8~10 | `gemini-3.6-flash` |
+
+모델에 따라 답변이 달라질 수 있으므로(발견한 점 2), 같은 모델로 10개를 한 번에 돌린 결과는 아닙니다. 점수는 평가 모델이 매기므로 실행할 때마다 조금씩 달라질 수 있습니다.
