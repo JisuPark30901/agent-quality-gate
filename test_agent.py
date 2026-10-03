@@ -12,7 +12,7 @@ from agent import answer
 
 # The free tier allows 5 requests per minute per model, so the judge uses a
 # different model from the agent and spaces out its calls.
-JUDGE_MODEL = os.getenv("JUDGE_MODEL", "gemini-3.5-flash-lite")
+JUDGE_MODEL = os.getenv("JUDGE_MODEL") or "gemini-3.5-flash-lite"
 JUDGE_RPM = float(os.getenv("JUDGE_RPM", "5"))
 
 

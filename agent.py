@@ -12,7 +12,7 @@ from google.genai import types
 load_dotenv()
 
 DOCS_DIR = Path(__file__).parent / "docs"
-MODEL = os.getenv("GEMINI_MODEL", "gemini-3.7-flash")
+MODEL = os.getenv("GEMINI_MODEL") or "gemini-3.7-flash"
 TOP_K = 2
 
 SYSTEM_PROMPT = (

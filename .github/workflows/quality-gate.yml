@@ -27,8 +27,12 @@ jobs:
 
       # Core cases only (free tier: ~20 requests/day per model).
       # deepeval exits non-zero when any metric is below its threshold.
+      # Switch models in Settings > Variables when a daily quota runs out;
+      # empty values fall back to the defaults in the code.
       - name: Run core quality cases
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          JUDGE_MODEL: ${{ vars.JUDGE_MODEL }}
           DEEPEVAL_TELEMETRY_OPT_OUT: "YES"
         run: deepeval test run test_agent.py -m core
