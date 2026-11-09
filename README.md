@@ -2,7 +2,7 @@
 
 LLM 에이전트의 응답 품질과 도구 호출을 자동으로 평가하고, 기준에 못 미치면 CI에서 배포를 막는 품질 게이트 예제입니다.
 
-[![quality-gate](https://github.com/JisuPark30901/kt-agent-quality-gate/actions/workflows/quality-gate.yml/badge.svg)](https://github.com/JisuPark30901/kt-agent-quality-gate/actions/workflows/quality-gate.yml)
+[![quality-gate](https://github.com/JisuPark30901/agent-quality-gate/actions/workflows/quality-gate.yml/badge.svg)](https://github.com/JisuPark30901/agent-quality-gate/actions/workflows/quality-gate.yml)
 
 **결과 요약:** 테스트 10개 중 10개 PASS. 도구 추가 전 6/10에서 개선했습니다. 자세한 내용은 [RESULTS.md](RESULTS.md)에 있습니다.
 
